@@ -205,7 +205,9 @@ extern "C" {
 #endif /* MB_PREFER_SPEED */
 
 #ifndef MB_COMPACT_MODE
+#ifndef __riscos /* RISC OS Norcroft compiler doesn't support bit fields for enums or chars */
 #	define MB_COMPACT_MODE
+#endif
 #endif /* MB_COMPACT_MODE */
 
 #ifdef MB_COMPACT_MODE

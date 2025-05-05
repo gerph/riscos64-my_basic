@@ -57,6 +57,11 @@
 #include <string.h>
 #include <time.h>
 
+#ifdef __riscos
+#include "swis.h"
+#include "kernel.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
@@ -704,11 +709,15 @@ static int _get_unicode_bom(const char** ch) {
 }
 
 static void _clear_screen(void) {
+#ifdef __riscos
+    _swix(OS_WriteI + 12, 0);
+#else
 #ifdef MB_OS_WIN
 	system("cls");
 #else /* MB_OS_WIN */
 	system("clear");
 #endif /* MB_OS_WIN */
+#endif
 }
 
 static int _new_program(void) {
@@ -792,7 +801,7 @@ static void _list_one_line(bool_t nl, long l, const char* ln) {
 	if(wstrp != wstr)
 		free(wstrp);
 #else /* MB_CP_VC && MB_ENABLE_UNICODE */
-	_printf(nl ? "%ld]%s\n" : "%ld]%s", l, ln);
+    _printf(nl ? "%ld]%s\n" : "%ldXXX]%s", l, ln);
 #endif /* MB_CP_VC && MB_ENABLE_UNICODE */
 }
 
@@ -810,7 +819,7 @@ static void _list_program(const char* sn, const char* cn) {
 		for(i = 0; i < _code()->count; ++i) {
 			p = _code()->lines[i];
 			_get_unicode_bom((const char**)&p);
-			_list_one_line(false, i + 1, p);
+			_list_one_line(true, i + 1, p);
 		}
 	} else {
 		long i = 0;
@@ -952,6 +961,9 @@ static void _save_program(const char* path) {
 }
 
 static void _kill_program(const char* path) {
+#ifdef __riscos
+    #define unlink remove
+#endif
 	if(!unlink(path)) {
 		_printf("Succeeded to deleted file \"%s\".\n", path);
 	} else {
@@ -968,6 +980,12 @@ static void _kill_program(const char* path) {
 static void _list_directory(const char* path) {
 	char line[_MAX_LINE_LENGTH];
 
+#ifdef __riscos
+    if(path && *path) sprintf(line, "cat %s", path);
+    else sprintf(line, "cat");
+    _kernel_system("cat");
+#else
+
 #ifdef MB_OS_WIN
 	if(path && *path) sprintf(line, "dir %s", path);
 	else sprintf(line, "dir");
@@ -976,6 +994,7 @@ static void _list_directory(const char* path) {
 	else sprintf(line, "ls");
 #endif /* MB_OS_WIN */
 	system(line);
+#endif
 }
 
 static void _show_tip(void) {
@@ -1268,11 +1287,20 @@ static int_t _ticks(void) {
 }
 #elif defined MB_CP_GCC
 static int_t _ticks(void) {
-	struct timespec ts;
+#ifdef __riscos
+    _kernel_oserror *err;
+    uint32_t t = 0;
+    err = _swix(OS_ReadMonotonicTime, _OUT(0), &t);
+    if (err)
+        t = 0;
+    return t;
+#else
+    struct timespec ts;
 
-	clock_gettime(CLOCK_MONOTONIC, &ts);
+    clock_gettime(CLOCK_MONOTONIC, &ts);
 
-	return (int_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    return (int_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+#endif
 }
 #else /* MB_CP_VC || MB_CP_BORLANDC */
 #	undef _HAS_TICKS
@@ -1351,7 +1379,11 @@ static int sys(struct mb_interpreter_t* s, void** l) {
 	mb_check(mb_attempt_close_bracket(s, l));
 
 	if(arg)
+#ifdef __riscos
+        _kernel_system(arg);
+#else
 		system(arg);
+#endif
 
 	return result;
 }
@@ -1576,10 +1608,13 @@ static void _on_startup(void) {
 	SetConsoleCP(CP_UTF8);
 #endif /* MB_CP_VC && MB_ENABLE_UNICODE && !MB_UNICODE_NEED_CONVERTING */
 
+#ifndef __riscos64
+    /* FIXME: This isn't implemented in my library yet */
 	setlocale(LC_ALL, "");
 	setlocale(LC_CTYPE, "C");
 	setlocale(LC_NUMERIC, "C");
 	setlocale(LC_TIME, "C");
+#endif
 
 	mb_init();
 

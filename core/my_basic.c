@@ -46,10 +46,17 @@
 #	include <malloc.h>
 #	include <Windows.h>
 #else /* MB_CP_VC */
+#ifdef __riscos
+typedef long intptr_t;
+typedef unsigned long uintptr_t;
+#else
 #	include <stdint.h>
+#endif
 #endif /* MB_CP_VC */
 #ifndef MB_CP_ARDUINO
+#ifndef __riscos
 #	include <memory.h>
+#endif
 #endif /* MB_CP_ARDUINO */
 #include <assert.h>
 #include <ctype.h>
@@ -941,6 +948,24 @@ static _object_t* _exp_assign = 0;
 
 #define _copy_bytes(__l, __r) do { memcpy((__l), (__r), sizeof(mb_val_bytes_t)); } while(0)
 
+#ifdef __riscos
+typedef struct { unsigned long low, high; } ulonglong_t;
+#else
+typedef unsigned long long ulonglong_t;
+#endif
+
+#ifdef __riscos
+#define _set_real_with_hex(__r, __i) \
+    do { \
+        if(sizeof(__r) == sizeof(unsigned long)) { \
+            union { unsigned long i; real_t r; } __u; \
+            __u.i = __i; \
+            __r = __u.r; \
+        } else { \
+            mb_assert(0 && "Invalid real number precision."); \
+        } \
+    } while(0)
+#else
 #define _set_real_with_hex(__r, __i) \
 	do { \
 		if(sizeof(__r) == sizeof(unsigned char)) { \
@@ -959,14 +984,15 @@ static _object_t* _exp_assign = 0;
 			union { unsigned long i; real_t r; } __u; \
 			__u.i = __i; \
 			__r = __u.r; \
-		} else if(sizeof(__r) == sizeof(unsigned long long)) { \
-			union { unsigned long long i; real_t r; } __u; \
+		} else if(sizeof(__r) == sizeof(ulonglong_t)) { \
+			union { ulonglong_t i; real_t r; } __u; \
 			__u.i = __i; \
 			__r = __u.r; \
 		} else { \
 			mb_assert(0 && "Invalid real number precision."); \
 		} \
 	} while(0)
+#endif
 
 #if MB_CONVERT_TO_INT_LEVEL == MB_CONVERT_TO_INT_LEVEL_NONE
 #	define _convert_to_int_if_posible(__o) do { ((void)(__o)); } while(0)
@@ -2052,6 +2078,8 @@ static int _close_coll_lib(mb_interpreter_t* s);
 #	define MB_FUNC __FUNC__
 #elif defined MB_CP_PELLESC
 #	define MB_FUNC __func__
+#elif defined __riscos
+#   define MB_FUNC NULL
 #else /* MB_CP_VC */
 #	define MB_FUNC __FUNCTION__
 #endif /* MB_CP_VC */
