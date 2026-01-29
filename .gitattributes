@@ -1,2 +1,3 @@
+resource/resource.h text eol=crlf
 *.c text
 *.h text
